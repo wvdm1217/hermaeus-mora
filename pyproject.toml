@@ -1,0 +1,17 @@
+[project]
+name = "hermaeus-mora"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Werner van der Merwe", email = "werner@spatialedge.ai" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+hermaeus-mora = "hermaeus_mora:main"
+
+[build-system]
+requires = ["uv_build>=0.10.3,<0.11.0"]
+build-backend = "uv_build"
