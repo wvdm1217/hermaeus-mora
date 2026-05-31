@@ -20,9 +20,14 @@ build-backend = "uv_build"
 dev = [
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.15",
     "ty>=0.0.40",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--cov=hermaeus_mora --cov-report=term-missing"
+testpaths = ["tests"]
 
 [tool.ruff]
 # Set the maximum line length to 88 (Black's default).
@@ -33,3 +38,6 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.ruff.lint]
+extend-select = ["I", "UP"]
