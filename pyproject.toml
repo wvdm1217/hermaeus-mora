@@ -23,3 +23,13 @@ dev = [
     "ruff>=0.15.15",
     "ty>=0.0.40",
 ]
+
+[tool.ruff]
+# Set the maximum line length to 88 (Black's default).
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
