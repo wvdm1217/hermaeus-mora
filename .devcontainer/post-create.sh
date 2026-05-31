@@ -14,3 +14,25 @@ fi
 
 # Install project dependencies including the dev group.
 uv sync --dev
+
+# Install pre-commit hooks for this repository.
+uv run pre-commit install
+
+# Ensure zsh auto-activates the repository virtual environment.
+ZSHRC="$HOME/.zshrc"
+AUTO_VENV_MARKER="# >>> hermaeus-mora auto-venv >>>"
+
+if [[ ! -f "$ZSHRC" ]]; then
+	touch "$ZSHRC"
+fi
+
+if ! grep -Fq "$AUTO_VENV_MARKER" "$ZSHRC"; then
+	{
+		echo ""
+		echo "$AUTO_VENV_MARKER"
+		echo "if [[ \"\$PWD\" == \"$REPO_ROOT\"* ]] && [[ -f \"$REPO_ROOT/.venv/bin/activate\" ]] && [[ -z \"\${VIRTUAL_ENV:-}\" ]]; then"
+		echo "  source \"$REPO_ROOT/.venv/bin/activate\""
+		echo "fi"
+		echo "# <<< hermaeus-mora auto-venv <<<"
+	} >>"$ZSHRC"
+fi
