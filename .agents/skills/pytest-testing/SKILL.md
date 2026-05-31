@@ -17,7 +17,7 @@ This skill guides the creation of robust, maintainable, and high-quality tests u
 ## Core Principles
 
 1. **Meaningful Assertions Only**: Never write tests that just assert `True`, `is not None`, or check that a function simply runs without raising an error (unless explicitly testing execution safety). Assert specific data states, correct mutations, and precise return values.
-2. **Arrange, Act, Assert (AAA)**: Strictly structure every test logically. 
+2. **Arrange, Act, Assert (AAA)**: Strictly structure every test logically.
 3. **Isolate State**: Tests should not share mutable state. Use localized fixtures instead of global variables.
 4. **Test Behavior, Not Implementation**: Avoid over-mocking. If you must mock, mock at the boundaries, not the internals.
 
@@ -47,7 +47,7 @@ This skill guides the creation of robust, maintainable, and high-quality tests u
   ```
 
 ### 3. Effective Fixture Usage
-- Use `pytest.fixture` to handle setup and teardown cleanly. 
+- Use `pytest.fixture` to handle setup and teardown cleanly.
 - Avoid using `setup_method` or `setUp` from `unittest` style.
 - Scope fixtures appropriately (e.g., `scope="session"` for expensive DB setup, default `function` scope for isolated state).
 - Use `yield` inside fixtures to safely tear down resources even if the test fails.
