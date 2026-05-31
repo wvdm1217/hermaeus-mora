@@ -8,4 +8,5 @@
 - This project uses `uv` for dependency management.
 - To install dependencies, run `uv sync`.
 - To add a new dependency, use `uv add <package>`.
-- To run scripts or tests, use `uv run <command>`.
+- To run tests, **always** use the `pytest-testing` skill and execute the bundled script: `bash .agents/skills/pytest-testing/scripts/run_pytest.sh <target>`.
+- To run general scripts, use `uv run <command>`.
