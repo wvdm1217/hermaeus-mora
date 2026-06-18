@@ -18,9 +18,6 @@ uv sync --dev
 # Install pre-commit hooks for this repository.
 uv run pre-commit install
 
-# Install speckit
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.11.2
-
 # Ensure zsh auto-activates the repository virtual environment.
 ZSHRC="$HOME/.zshrc"
 AUTO_VENV_MARKER="# >>> hermaeus-mora auto-venv >>>"
