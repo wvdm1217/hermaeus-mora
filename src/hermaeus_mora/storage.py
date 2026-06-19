@@ -14,8 +14,7 @@ def ensure_data_dir() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
 
-def parse_markdown_file(path: Path) -> Entry:
-    content = path.read_text(encoding="utf-8")
+def parse_markdown_string(content: str) -> Entry:
     match = FRONTMATTER_REGEX.match(content)
     if match:
         frontmatter_str = match.group(1)
@@ -24,7 +23,15 @@ def parse_markdown_file(path: Path) -> Entry:
         metadata = EntryMetadata(**metadata_dict)
         return Entry(metadata=metadata, content=body)
 
-    raise ValueError(f"No valid frontmatter found in {path}")
+    raise ValueError("No valid frontmatter found in content")
+
+
+def parse_markdown_file(path: Path) -> Entry:
+    content = path.read_text(encoding="utf-8")
+    try:
+        return parse_markdown_string(content)
+    except ValueError:
+        raise ValueError(f"No valid frontmatter found in {path}") from None
 
 
 def format_markdown_file(entry: Entry) -> str:
