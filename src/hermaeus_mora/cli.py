@@ -1,19 +1,14 @@
 import os
+import shlex
 import subprocess
 import tempfile
-from datetime import UTC, datetime
-from pathlib import Path
 
 import typer
 
 from hermaeus_mora import storage
-from hermaeus_mora.models import Entry, EntryMetadata
+from hermaeus_mora.models import Entry, EntryMetadata, utc_now
 
 app = typer.Typer(invoke_without_command=True, help="Journal Entry CLI (hm)")
-
-
-def utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 def open_editor(initial_content: str) -> str:
@@ -38,24 +33,27 @@ def open_editor(initial_content: str) -> str:
         filepath = tf.name
 
     try:
-        subprocess.run([editor, filepath], check=True)
+        editor_cmd = shlex.split(editor)
+        subprocess.run([*editor_cmd, filepath], check=True)
         with open(filepath, encoding="utf-8") as f:
             return f.read()
     finally:
         os.remove(filepath)
 
 
-@app.callback()
-def main(ctx: typer.Context):
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context) -> None:
     """
     Journal Entry CLI for managing markdown-based entries.
     """
     if ctx.invoked_subcommand is None:
-        ctx.invoke(new)
+        new(title=None)
 
 
 @app.command()
-def new(title: str | None = typer.Option(None, help="Optional title for the entry")):
+def new(
+    title: str | None = typer.Option(None, help="Optional title for the entry"),
+) -> None:
     """Create a new journal entry."""
     if not title:
         title = typer.prompt("Title (optional)", default="", show_default=False)
@@ -72,28 +70,21 @@ def new(title: str | None = typer.Option(None, help="Optional title for the entr
     initial_content = storage.format_markdown_file(entry)
     updated_content = open_editor(initial_content)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".md", mode="w+", encoding="utf-8", delete=False
-    ) as tf:
-        tf.write(updated_content)
-        tf.flush()
-        filepath = Path(tf.name)
-
     try:
-        parsed_entry = storage.parse_markdown_file(filepath)
+        parsed_entry = storage.parse_markdown_string(updated_content)
         parsed_entry.metadata.updated_at = utc_now()
         storage.save_entry(parsed_entry)
         typer.echo(f"Saved entry {parsed_entry.metadata.id} successfully.")
     except Exception as e:
         typer.echo(f"Error saving entry: {e}", err=True)
-    finally:
-        if filepath.exists():
-            filepath.unlink()
+        raise typer.Exit(1) from e
 
 
 @app.command("ls")
 @app.command("list")
-def list_entries(limit: int = typer.Option(10, help="Number of entries to show")):
+def list_entries(
+    limit: int = typer.Option(10, help="Number of entries to show"),
+) -> None:
     """List recent journal entries."""
     entries = storage.get_all_entries()
     if not entries:
@@ -117,7 +108,9 @@ def list_entries(limit: int = typer.Option(10, help="Number of entries to show")
 
 
 @app.command()
-def view(entry_id: int | None = typer.Argument(None, help="ID of the entry to view")):
+def view(
+    entry_id: int | None = typer.Argument(None, help="ID of the entry to view"),
+) -> None:
     """View a journal entry."""
     if entry_id is None:
         entry = storage.get_latest_entry()
@@ -134,7 +127,9 @@ def view(entry_id: int | None = typer.Argument(None, help="ID of the entry to vi
 
 
 @app.command()
-def edit(entry_id: int | None = typer.Argument(None, help="ID of the entry to edit")):
+def edit(
+    entry_id: int | None = typer.Argument(None, help="ID of the entry to edit"),
+) -> None:
     """Edit an existing journal entry."""
     if entry_id is None:
         entry = storage.get_latest_entry()
@@ -150,15 +145,8 @@ def edit(entry_id: int | None = typer.Argument(None, help="ID of the entry to ed
     initial_content = storage.format_markdown_file(entry)
     updated_content = open_editor(initial_content)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".md", mode="w+", encoding="utf-8", delete=False
-    ) as tf:
-        tf.write(updated_content)
-        tf.flush()
-        filepath = Path(tf.name)
-
     try:
-        parsed_entry = storage.parse_markdown_file(filepath)
+        parsed_entry = storage.parse_markdown_string(updated_content)
         # Ensure we keep the same ID unless user intentionally broke it,
         # but we should enforce ID
         if parsed_entry.metadata.id != entry.metadata.id:
@@ -172,13 +160,11 @@ def edit(entry_id: int | None = typer.Argument(None, help="ID of the entry to ed
         typer.echo(f"Updated entry {parsed_entry.metadata.id} successfully.")
     except Exception as e:
         typer.echo(f"Error updating entry: {e}", err=True)
-    finally:
-        if filepath.exists():
-            filepath.unlink()
+        raise typer.Exit(1) from e
 
 
 @app.command()
-def rm(entry_id: int = typer.Argument(..., help="ID of the entry to remove")):
+def rm(entry_id: int = typer.Argument(..., help="ID of the entry to remove")) -> None:
     """Delete a journal entry."""
     entry = storage.get_entry(entry_id)
     if not entry:
