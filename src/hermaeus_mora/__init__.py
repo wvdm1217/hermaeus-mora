@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from hermaeus-mora!")
+"""
+hermaeus_mora application
+"""

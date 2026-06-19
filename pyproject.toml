@@ -7,10 +7,15 @@ authors = [
     { name = "Werner van der Merwe", email = "werner@spatialedge.ai" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "pyyaml>=6.0.3",
+    "typer>=0.26.7",
+]
 
 [project.scripts]
-hermaeus-mora = "hermaeus_mora:main"
+hm = "hermaeus_mora.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.11.17,<0.12.0"]
