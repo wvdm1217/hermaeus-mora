@@ -38,5 +38,10 @@ This skill guides the creation of high-quality, comprehensive specification docu
 5. **Create the Spec File**
    - Write the generated specification to the new file in `docs/specs/`.
 
-6. **Review and Iterate**
-   - Present the created spec to the user and ask if any sections (like Architecture, Edge Cases, or Observability) need deeper elaboration or adjustments.
+6. **Design Considerations & Clarification**
+   - Immediately after creating the initial spec, present a distinct "Design Considerations" section in your chat response.
+   - Ask specific, targeted questions to clarify missing context, uncover hidden edge cases, and refine architectural decisions. This is core to ensuring a high-quality spec.
+
+7. **Review and Iterate**
+   - Update the spec document based on the user's answers to the design consideration questions.
+   - Present the updated spec to the user and ask if any further sections (like Architecture, Edge Cases, or Observability) need deeper elaboration or adjustments.
