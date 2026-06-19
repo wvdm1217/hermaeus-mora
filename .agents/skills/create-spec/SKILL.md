@@ -18,6 +18,7 @@ This skill guides the creation of high-quality, comprehensive specification docu
 
 2. **Load Template**
    - Read the template from `docs/specs/_template.md`.
+   - Read the architecture from `docs/specs/ARCHITECTURE.md`.
    - Never overwrite the `_template.md` file itself.
 
 3. **Draft the Specification**
