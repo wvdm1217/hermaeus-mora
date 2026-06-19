@@ -31,8 +31,8 @@ This skill guides the creation of high-quality, comprehensive specification docu
    - Set the `date` to the current date.
 
 4. **Determine Filename**
-   - Format the filename using a datetime stamp: `YYYY-MM-DD_HH-MM-SS-<normalized-title>.md`.
-   - (e.g., `2024-03-14_15-30-00-user-auth-flow.md`).
+   - Format the filename using a datetime stamp: `YYYY-MM-DD-<normalized-title>.md`.
+   - (e.g., `2024-03-14-user-auth-flow.md`).
    - The directory must be `docs/specs/`.
 
 5. **Create the Spec File**
