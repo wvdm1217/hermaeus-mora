@@ -84,9 +84,16 @@ def new(
 @app.command("list")
 def list_entries(
     limit: int = typer.Option(10, help="Number of entries to show"),
+    tag: str | None = typer.Option(None, help="Filter by tag (case-insensitive)"),
 ) -> None:
     """List recent journal entries."""
     entries = storage.get_all_entries()
+
+    if tag:
+        entries = [
+            e for e in entries if any(t.lower() == tag.lower() for t in e.metadata.tags)
+        ]
+
     if not entries:
         typer.echo("No entries found.")
         return
