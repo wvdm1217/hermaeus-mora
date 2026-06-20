@@ -15,4 +15,14 @@
     },
     "ruff.importStrategy": "fromEnvironment",
     "ty.importStrategy": "fromEnvironment",
+    "chat.tools.terminal.autoApprove": {
+        "/^uv run pre-commit run --all-files$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\.agents/skills/pytest-testing/scripts/run_pytest\\.sh tests/$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    },
 }
