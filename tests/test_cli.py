@@ -173,3 +173,14 @@ def test_cli_list_with_tag(monkeypatch, tmp_path):
 
     res_none = runner.invoke(app, ["list", "--tag", "notfound"])
     assert "No entries found." in res_none.stdout
+
+    editor_script_long = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 3\\ntitle: Long Tag Entry\\n"
+        "tags: [very_long_tag_that_should_be_truncated]\\n---\\nContent')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_long}"')
+    runner.invoke(app, ["new"], input="Long\n")
+
+    res_long = runner.invoke(app, ["list"])
+    assert "very_long_tag_tha..." in res_long.stdout

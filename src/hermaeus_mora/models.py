@@ -23,8 +23,12 @@ class EntryMetadata(BaseModel):
 
     @field_validator("tags", "links", mode="before")
     @classmethod
-    def coerce_none_to_list(cls, v: Any) -> list[str]:
-        return v if v is not None else []
+    def coerce_to_list(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        return v
 
 
 class Entry(BaseModel):

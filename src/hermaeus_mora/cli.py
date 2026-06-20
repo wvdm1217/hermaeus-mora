@@ -103,15 +103,23 @@ def list_entries(
     entries = entries[:limit]
 
     # Simple text table
-    typer.echo(f"{'ID':<5} | {'Date':<12} | {'Title':<30} | {'Slug'}")
-    typer.echo("-" * 70)
+    typer.echo(f"{'ID':<5} | {'Date':<12} | {'Title':<30} | {'Tags':<20} | {'Slug'}")
+    typer.echo("-" * 92)
     for entry in entries:
         dt_str = entry.metadata.created_at.strftime("%Y-%m-%d")
         title = entry.metadata.title or ""
         if len(title) > 27:
             title = title[:24] + "..."
+
+        tags_str = ", ".join(entry.metadata.tags)
+        if len(tags_str) > 17:
+            tags_str = tags_str[:17] + "..."
+
         slug = entry.metadata.slug or ""
-        typer.echo(f"{entry.metadata.id:<5} | {dt_str:<12} | {title:<30} | {slug}")
+        typer.echo(
+            f"{entry.metadata.id:<5} | {dt_str:<12} | {title:<30} | "
+            f"{tags_str:<20} | {slug}"
+        )
 
 
 @app.command()

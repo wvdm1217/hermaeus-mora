@@ -82,3 +82,8 @@ def test_metadata_list_coercion():
     parsed = EntryMetadata(**data)
     assert parsed.tags == []
     assert parsed.links == []
+
+    data_str: dict[str, Any] = {"id": 9, "tags": "single_tag", "links": "single_link"}
+    parsed_str = EntryMetadata(**data_str)
+    assert parsed_str.tags == ["single_tag"]
+    assert parsed_str.links == ["single_link"]
