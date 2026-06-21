@@ -136,3 +136,51 @@ def test_cli_editor(monkeypatch, tmp_path):
     result_err = runner.invoke(app, ["edit", "0"])
     assert result_err.exit_code == 1
     assert "Error updating entry" in result_err.output
+
+
+def test_cli_list_with_tag(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+
+    editor_script_idea = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 1\\ntitle: Idea Entry\\n"
+        "tags: [idea]\\n---\\nContent')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_idea}"')
+    runner.invoke(app, ["new"], input="Idea\n")
+
+    editor_script_work = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 2\\ntitle: Work Entry\\n"
+        "tags: [work]\\n---\\nContent')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_work}"')
+    runner.invoke(app, ["new"], input="Work\n")
+
+    # List all
+    res_all = runner.invoke(app, ["list"])
+    assert "Idea Entry" in res_all.stdout
+    assert "Work Entry" in res_all.stdout
+
+    # List with tag
+    res_idea = runner.invoke(app, ["list", "--tag", "IDEA"])
+    assert "Idea Entry" in res_idea.stdout
+    assert "Work Entry" not in res_idea.stdout
+
+    res_work = runner.invoke(app, ["list", "--tag", "work"])
+    assert "Work Entry" in res_work.stdout
+    assert "Idea Entry" not in res_work.stdout
+
+    res_none = runner.invoke(app, ["list", "--tag", "notfound"])
+    assert "No entries found." in res_none.stdout
+
+    editor_script_long = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 3\\ntitle: Long Tag Entry\\n"
+        "tags: [very_long_tag_that_should_be_truncated]\\n---\\nContent')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_long}"')
+    runner.invoke(app, ["new"], input="Long\n")
+
+    res_long = runner.invoke(app, ["list"])
+    assert "very_long_tag_tha..." in res_long.stdout

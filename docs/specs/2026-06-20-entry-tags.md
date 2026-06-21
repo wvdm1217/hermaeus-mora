@@ -3,7 +3,7 @@ title: "entry-tags"
 author: "Werner van der Merwe"
 date: "2026-06-20"
 version: "0.2.0"
-status: "Draft"
+status: "Implemented"
 ---
 
 # entry-tags
