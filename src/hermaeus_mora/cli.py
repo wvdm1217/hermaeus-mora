@@ -79,6 +79,11 @@ def new(
         parsed_entry = storage.parse_markdown_string(updated_content)
         parsed_entry.metadata.updated_at = utc_now()
         storage.save_entry(parsed_entry)
+        from hermaeus_mora.config import settings
+        from hermaeus_mora.search import Indexer
+
+        if settings.search.enabled:
+            Indexer(settings.data_dir).index_entry(parsed_entry)
         typer.secho(
             f"Saved entry {parsed_entry.metadata.id} successfully.",
             fg=typer.colors.GREEN,
@@ -193,6 +198,11 @@ def edit(
 
         parsed_entry.metadata.updated_at = utc_now()
         storage.save_entry(parsed_entry)
+        from hermaeus_mora.config import settings
+        from hermaeus_mora.search import Indexer
+
+        if settings.search.enabled:
+            Indexer(settings.data_dir).index_entry(parsed_entry)
         typer.secho(
             f"Updated entry {parsed_entry.metadata.id} successfully.",
             fg=typer.colors.GREEN,
@@ -212,6 +222,74 @@ def rm(entry_id: int = typer.Argument(..., help="ID of the entry to remove")) ->
 
     typer.confirm(f"Are you sure you want to delete entry {entry_id}?", abort=True)
     if storage.delete_entry(entry_id):
+        from hermaeus_mora.config import settings
+        from hermaeus_mora.search import Indexer
+
+        if settings.search.enabled:
+            Indexer(settings.data_dir).delete_entry(str(entry_id))
         typer.secho(f"Deleted entry {entry_id}.", fg=typer.colors.GREEN)
     else:
         typer.secho(f"Failed to delete entry {entry_id}.", fg=typer.colors.RED)
+
+
+@app.command()
+def index() -> None:
+    """Rebuild the search index for all entries."""
+    from hermaeus_mora.config import settings
+    from hermaeus_mora.search import Indexer
+
+    if not settings.search.enabled:
+        typer.secho("Search is disabled in config.", fg=typer.colors.YELLOW)
+        return
+
+    typer.secho("Building search index...", fg=typer.colors.CYAN)
+    if not settings.search.enabled:
+        typer.secho("Search is disabled in config.", fg=typer.colors.YELLOW)
+        return
+
+    try:
+        indexer = Indexer(settings.data_dir)
+        indexer.index_all()
+        typer.secho("Search index rebuilt successfully.", fg=typer.colors.GREEN)
+    except Exception as e:
+        typer.secho(f"Error building index: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query"),
+    limit: int = typer.Option(10, help="Maximum number of results to return"),
+) -> None:
+    """Search entries using full-text and semantic search."""
+    from hermaeus_mora.config import settings
+    from hermaeus_mora.search import Indexer
+
+    if not settings.search.enabled:
+        typer.secho("Search is disabled in config.", fg=typer.colors.YELLOW)
+        return
+
+    try:
+        indexer = Indexer(settings.data_dir)
+        results = indexer.search(query)
+
+        if not results:
+            typer.secho("No results found.", fg=typer.colors.YELLOW)
+            return
+
+        results = results[:limit]
+
+        typer.secho(
+            f"{'ID':<5} | {'Score':<6} | {'Path'}",
+            fg=typer.colors.CYAN,
+            bold=True,
+        )
+        typer.echo("-" * 50)
+
+        for r in results:
+            score_str = f"{r['score']:.2f}"
+            typer.echo(f"{r['memory_id']:<5} | {score_str:<6} | {r['file_path']}")
+
+    except Exception as e:
+        typer.secho(f"Error during search: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
