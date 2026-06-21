@@ -40,3 +40,31 @@ def test_generate_slug():
     assert storage.generate_slug("Hello World!") == "hello-world"
     assert storage.generate_slug(None) == "untitled"
     assert storage.generate_slug("  Leading and Trailing -- ") == "leading-and-trailing"
+
+
+def test_get_entry_path_truncation():
+    dt = datetime(2026, 6, 19, 12, 0, 0, tzinfo=UTC)
+    # Long slug that should be truncated word-aware to under 15
+    metadata = EntryMetadata(
+        id=42,
+        title="Test Format",
+        slug="this-is-a-very-long-slug",
+        created_at=dt,
+        updated_at=dt,
+    )
+    entry = Entry(metadata=metadata, content="body")
+    path = storage.get_entry_path(entry)
+    # "this-is-a-very" is 14 chars, adding "-long" would be 19.
+    assert path.name == "2026-06-19_42_this-is-a-very.md"
+
+    # Single word over 15 chars
+    metadata = EntryMetadata(
+        id=43,
+        title="Super",
+        slug="supercalifragilisticexpialidocious",
+        created_at=dt,
+        updated_at=dt,
+    )
+    entry = Entry(metadata=metadata, content="body")
+    path = storage.get_entry_path(entry)
+    assert path.name == "2026-06-19_43_supercalifragil.md"

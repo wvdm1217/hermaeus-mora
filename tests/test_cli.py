@@ -184,3 +184,54 @@ def test_cli_list_with_tag(monkeypatch, tmp_path):
 
     res_long = runner.invoke(app, ["list"])
     assert "very_long_tag_tha..." in res_long.stdout
+
+
+def test_cli_redundant_update(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+
+    # Create an entry
+    editor_script_1 = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 1\\ntitle: Redundant\\n---\\nContent')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_1}"')
+    res = runner.invoke(app, ["new"], input="Title\n")
+    assert res.exit_code == 0
+    assert "Saved entry" in res.stdout
+
+    # Edit the entry, but leave content identical.
+    # The initial content from storage already ends in \n, so if the editor
+    # writes exactly that, it's redundant
+    editor_script_2 = (
+        "import sys\n"
+        "p = sys.argv[-1]\n"
+        "with open(p, 'r') as f: content = f.read()\n"
+        "with open(p, 'w') as f: f.write(content + '\\n\\n')\n"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_2}"')
+    res_edit = runner.invoke(app, ["edit", "1"])
+    assert res_edit.exit_code == 0
+    assert "No changes detected. Skipping save." in res_edit.stdout
+
+
+def test_cli_broken_editor(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setenv("EDITOR", "broken_command_that_does_not_exist_xyz")
+    res = runner.invoke(app, ["new"], input="Title\n")
+    assert res.exit_code == 1
+    assert "Editor process failed" in res.output
+
+
+def test_cli_list_slug_truncation(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    long_slug = "a" * 100
+    editor_script = (
+        "import sys; p = sys.argv[-1]; "
+        f"open(p, 'w').write('---\\nid: 1\\ntitle: L\\nslug: {long_slug}\\n---\\nC')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script}"')
+    runner.invoke(app, ["new"], input="Title\n")
+
+    res = runner.invoke(app, ["list"])
+    assert "a" * 27 + "..." in res.stdout
+    assert "a" * 31 not in res.stdout

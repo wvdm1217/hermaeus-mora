@@ -14,14 +14,11 @@ app = typer.Typer(invoke_without_command=True, help="Journal Entry CLI (hm)")
 def open_editor(initial_content: str) -> str:
     editor = os.environ.get("EDITOR")
     if not editor:
-        typer.echo(
-            "EDITOR environment variable not set. Falling back to inline prompt."
+        typer.secho(
+            "EDITOR environment variable not set. Falling back to inline prompt.",
+            fg=typer.colors.YELLOW,
         )
-        # If fallback, we extract frontmatter and just prompt for body
-        # For simplicity, we just ask for the body and append it to initial_content
-        print("---")
-        print(initial_content.strip())
-        print("---")
+        typer.echo(initial_content.strip())
         body = typer.prompt("Enter your journal entry content")
         return f"{initial_content}\n{body}\n"
 
@@ -37,6 +34,9 @@ def open_editor(initial_content: str) -> str:
         subprocess.run([*editor_cmd, filepath], check=True)
         with open(filepath, encoding="utf-8") as f:
             return f.read()
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        typer.secho(f"Editor process failed: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from e
     finally:
         os.remove(filepath)
 
@@ -69,14 +69,22 @@ def new(
 
     initial_content = storage.format_markdown_file(entry)
     updated_content = open_editor(initial_content)
+    updated_content = updated_content.rstrip() + "\n"
+
+    if updated_content == initial_content:
+        typer.secho("No changes detected. Skipping save.", fg=typer.colors.BLUE)
+        return
 
     try:
         parsed_entry = storage.parse_markdown_string(updated_content)
         parsed_entry.metadata.updated_at = utc_now()
         storage.save_entry(parsed_entry)
-        typer.echo(f"Saved entry {parsed_entry.metadata.id} successfully.")
+        typer.secho(
+            f"Saved entry {parsed_entry.metadata.id} successfully.",
+            fg=typer.colors.GREEN,
+        )
     except Exception as e:
-        typer.echo(f"Error saving entry: {e}", err=True)
+        typer.secho(f"Error saving entry: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from e
 
 
@@ -95,7 +103,7 @@ def list_entries(
         ]
 
     if not entries:
-        typer.echo("No entries found.")
+        typer.secho("No entries found.", fg=typer.colors.YELLOW)
         return
 
     # Sort descending by updated_at or created_at (we'll use created_at)
@@ -103,7 +111,11 @@ def list_entries(
     entries = entries[:limit]
 
     # Simple text table
-    typer.echo(f"{'ID':<5} | {'Date':<12} | {'Title':<30} | {'Tags':<20} | {'Slug'}")
+    typer.secho(
+        f"{'ID':<5} | {'Date':<12} | {'Title':<30} | {'Tags':<20} | {'Slug'}",
+        fg=typer.colors.CYAN,
+        bold=True,
+    )
     typer.echo("-" * 92)
     for entry in entries:
         dt_str = entry.metadata.created_at.strftime("%Y-%m-%d")
@@ -116,6 +128,9 @@ def list_entries(
             tags_str = tags_str[:17] + "..."
 
         slug = entry.metadata.slug or ""
+        if len(slug) > 30:
+            slug = slug[:27] + "..."
+
         typer.echo(
             f"{entry.metadata.id:<5} | {dt_str:<12} | {title:<30} | "
             f"{tags_str:<20} | {slug}"
@@ -130,12 +145,12 @@ def view(
     if entry_id is None:
         entry = storage.get_latest_entry()
         if not entry:
-            typer.echo("No entries to view.")
+            typer.secho("No entries to view.", fg=typer.colors.YELLOW)
             raise typer.Exit(1)
     else:
         entry = storage.get_entry(entry_id)
         if not entry:
-            typer.echo(f"Entry with ID {entry_id} not found.")
+            typer.secho(f"Entry with ID {entry_id} not found.", fg=typer.colors.RED)
             raise typer.Exit(1)
 
     typer.echo(storage.format_markdown_file(entry))
@@ -149,32 +164,41 @@ def edit(
     if entry_id is None:
         entry = storage.get_latest_entry()
         if not entry:
-            typer.echo("No entries to edit.")
+            typer.secho("No entries to edit.", fg=typer.colors.YELLOW)
             raise typer.Exit(1)
     else:
         entry = storage.get_entry(entry_id)
         if not entry:
-            typer.echo(f"Entry with ID {entry_id} not found.")
+            typer.secho(f"Entry with ID {entry_id} not found.", fg=typer.colors.RED)
             raise typer.Exit(1)
 
     initial_content = storage.format_markdown_file(entry)
     updated_content = open_editor(initial_content)
+    updated_content = updated_content.rstrip() + "\n"
+
+    if updated_content == initial_content:
+        typer.secho("No changes detected. Skipping save.", fg=typer.colors.BLUE)
+        return
 
     try:
         parsed_entry = storage.parse_markdown_string(updated_content)
         # Ensure we keep the same ID unless user intentionally broke it,
         # but we should enforce ID
         if parsed_entry.metadata.id != entry.metadata.id:
-            typer.echo(
-                "Warning: ID was changed in frontmatter. Reverting ID to original."
+            typer.secho(
+                "Warning: ID was changed in frontmatter. Reverting ID to original.",
+                fg=typer.colors.YELLOW,
             )
             parsed_entry.metadata.id = entry.metadata.id
 
         parsed_entry.metadata.updated_at = utc_now()
         storage.save_entry(parsed_entry)
-        typer.echo(f"Updated entry {parsed_entry.metadata.id} successfully.")
+        typer.secho(
+            f"Updated entry {parsed_entry.metadata.id} successfully.",
+            fg=typer.colors.GREEN,
+        )
     except Exception as e:
-        typer.echo(f"Error updating entry: {e}", err=True)
+        typer.secho(f"Error updating entry: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from e
 
 
@@ -183,11 +207,11 @@ def rm(entry_id: int = typer.Argument(..., help="ID of the entry to remove")) ->
     """Delete a journal entry."""
     entry = storage.get_entry(entry_id)
     if not entry:
-        typer.echo(f"Entry with ID {entry_id} not found.")
+        typer.secho(f"Entry with ID {entry_id} not found.", fg=typer.colors.RED)
         raise typer.Exit(1)
 
     typer.confirm(f"Are you sure you want to delete entry {entry_id}?", abort=True)
     if storage.delete_entry(entry_id):
-        typer.echo(f"Deleted entry {entry_id}.")
+        typer.secho(f"Deleted entry {entry_id}.", fg=typer.colors.GREEN)
     else:
-        typer.echo(f"Failed to delete entry {entry_id}.")
+        typer.secho(f"Failed to delete entry {entry_id}.", fg=typer.colors.RED)

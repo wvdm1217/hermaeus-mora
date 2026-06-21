@@ -39,14 +39,38 @@ def format_markdown_file(entry: Entry) -> str:
     frontmatter = yaml.dump(metadata_dict, default_flow_style=False, sort_keys=False)
     # Ensure frontmatter doesn't have an extra trailing newline if it
     # already ends with one, but pyyaml dump typically ends with \n.
-    return f"---\n{frontmatter}---\n{entry.content}"
+    content = f"---\n{frontmatter}---\n{entry.content}"
+    return content.rstrip() + "\n"
 
 
 def get_entry_path(entry: Entry) -> Path:
     # Use UTC date for consistent filename
     date_str = entry.metadata.created_at.astimezone(UTC).strftime("%Y-%m-%d")
     slug = entry.metadata.slug or f"entry-{entry.metadata.id}"
-    filename = f"{date_str}_{slug}.md"
+
+    words = slug.split("-")
+    truncated_slug_parts = []
+    current_length = 0
+    for word in words:
+        if not truncated_slug_parts:
+            if len(word) > 15:
+                truncated_slug_parts.append(word[:15])
+                break
+            else:
+                truncated_slug_parts.append(word)
+                current_length = len(word)
+        else:
+            if current_length + 1 + len(word) <= 15:
+                truncated_slug_parts.append(word)
+                current_length += 1 + len(word)
+            else:
+                break
+
+    final_slug = "-".join(truncated_slug_parts)
+    if not final_slug:
+        final_slug = slug[:15]
+
+    filename = f"{date_str}_{entry.metadata.id}_{final_slug}.md"
     return settings.data_dir / filename
 
 
