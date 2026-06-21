@@ -8,6 +8,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine
 
 from hermaeus_mora import storage
 from hermaeus_mora.config import settings
+from hermaeus_mora.models import Entry
 
 
 class Memory(SQLModel, table=True):
@@ -45,12 +46,12 @@ class OllamaEmbedder(BaseEmbedder):
 
 
 class DuckDBStore:
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path) -> None:
         self.db_path = str(db_path)
         self.engine = create_engine(f"duckdb:///{self.db_path}")
         self._init_db()
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         SQLModel.metadata.create_all(self.engine)
         with Session(self.engine) as session:
             session.exec(  # type: ignore
@@ -82,7 +83,7 @@ class DuckDBStore:
         file_path: str,
         content: str,
         embedding: list[float] | None = None,
-    ):
+    ) -> None:
         with self._get_session() as session:
             existing = session.get(Memory, memory_id)
             if existing:
@@ -99,13 +100,13 @@ class DuckDBStore:
             if embedding is not None:
                 session.exec(  # type: ignore
                     text(
-                        f"UPDATE memories SET embedding = {embedding} "
-                        f"WHERE memory_id = '{memory_id}'"
-                    )
+                        "UPDATE memories SET embedding = :emb WHERE memory_id = :mem_id"
+                    ),
+                    params={"emb": embedding, "mem_id": memory_id},
                 )
                 session.commit()
 
-    def refresh_fts_index(self):
+    def refresh_fts_index(self) -> None:
         with self._get_session() as session:
             with contextlib.suppress(Exception):
                 session.exec(  # type: ignore
@@ -120,7 +121,7 @@ class DuckDBStore:
             )
             session.commit()
 
-    def delete_memory(self, memory_id: str):
+    def delete_memory(self, memory_id: str) -> None:
         with self._get_session() as session:
             existing = session.get(Memory, memory_id)
             if existing:
@@ -152,12 +153,9 @@ class DuckDBStore:
         alpha: float = 0.5,
         limit: int = 10,
         query_embedding: list[float] | None = None,
-    ):
+    ) -> list[dict]:
         with self._get_session() as session:
             if query_embedding and settings.search.vector_enabled:
-                emb_str = (
-                    str(query_embedding) + "::FLOAT[" + str(len(query_embedding)) + "]"
-                )
                 sql = f"""
                 WITH bm25_scores AS (
                     SELECT memory_id,
@@ -167,7 +165,10 @@ class DuckDBStore:
                 ),
                 vector_scores AS (
                     SELECT memory_id,
-                           array_cosine_similarity(embedding, {emb_str}) AS cosine
+                           array_cosine_similarity(
+                               CAST(embedding AS FLOAT[{len(query_embedding)}]),
+                               CAST(:q_emb AS FLOAT[{len(query_embedding)}])
+                           ) AS cosine
                     FROM memories
                     WHERE embedding IS NOT NULL
                 )
@@ -182,7 +183,7 @@ class DuckDBStore:
                 WHERE b.bm25 IS NOT NULL OR v.cosine IS NOT NULL
                 """
                 res = session.exec(  # type: ignore
-                    text(sql), params={"query": query}
+                    text(sql), params={"query": query, "q_emb": query_embedding}
                 ).fetchall()
 
                 results = []
@@ -217,7 +218,7 @@ class DuckDBStore:
 
 
 class Indexer:
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path) -> None:
         self.data_dir = data_dir
         self.db_path = self.data_dir / "search.duckdb"
         self.store = DuckDBStore(self.db_path)
@@ -230,38 +231,7 @@ class Indexer:
             return OllamaEmbedder(settings.search.embedding_model)
         raise ValueError(f"Unknown embedding provider: {settings.search.provider}")
 
-    def index_all(self):
-        entries = storage.get_all_entries()
-        for entry in entries:
-            embedding = None
-            if self.embedder and entry.content.strip():
-                try:
-                    embedding = self.embedder.get_embeddings([entry.content])[0]
-                except Exception as e:
-                    print(f"Failed to embed entry {entry.metadata.id}: {e}")
-
-            self.store.upsert_memory(
-                memory_id=str(entry.metadata.id),
-                file_path=str(storage.get_entry_path(entry).name),
-                content=entry.content,
-                embedding=embedding,
-            )
-
-        self.store.refresh_fts_index()
-
-    def search(self, query: str) -> list[dict]:
-        query_embedding = None
-        if self.embedder:
-            try:
-                query_embedding = self.embedder.get_embeddings([query])[0]
-            except Exception as e:
-                print(f"Failed to embed query: {e}")
-
-        return self.store.search(query=query, query_embedding=query_embedding)
-
-    def index_entry(self, entry) -> None:
-        from hermaeus_mora import storage
-
+    def _upsert_single_entry(self, entry: Entry) -> None:
         embedding = None
         if self.embedder and entry.content.strip():
             try:
@@ -275,6 +245,26 @@ class Indexer:
             content=entry.content,
             embedding=embedding,
         )
+
+    def index_all(self) -> None:
+        entries = storage.get_all_entries()
+        for entry in entries:
+            self._upsert_single_entry(entry)
+
+        self.store.refresh_fts_index()
+
+    def search(self, query: str) -> list[dict]:
+        query_embedding = None
+        if self.embedder:
+            try:
+                query_embedding = self.embedder.get_embeddings([query])[0]
+            except Exception as e:
+                print(f"Failed to embed query: {e}")
+
+        return self.store.search(query=query, query_embedding=query_embedding)
+
+    def index_entry(self, entry: Entry) -> None:
+        self._upsert_single_entry(entry)
         self.store.refresh_fts_index()
 
     def delete_entry(self, memory_id: str) -> None:
