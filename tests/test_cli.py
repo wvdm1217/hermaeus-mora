@@ -235,3 +235,41 @@ def test_cli_list_slug_truncation(monkeypatch, tmp_path):
     res = runner.invoke(app, ["list"])
     assert "a" * 27 + "..." in res.stdout
     assert "a" * 31 not in res.stdout
+
+
+def test_cli_search_and_index(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(settings.search, "enabled", True)
+
+    res_index = runner.invoke(app, ["index"])
+    assert res_index.exit_code == 0
+    assert "Search index rebuilt successfully." in res_index.stdout
+
+    editor_script_1 = (
+        "import sys; p = sys.argv[-1]; "
+        "open(p, 'w').write('---\\nid: 10\\ntitle: First\\n---\\n"
+        "First special content')"
+    )
+    monkeypatch.setenv("EDITOR", f'python -c "{editor_script_1}"')
+    runner.invoke(app, ["new"], input="Title\n")
+
+    res_search = runner.invoke(app, ["search", "special content"])
+    assert res_search.exit_code == 0
+    assert "10 " in res_search.stdout
+
+    res_search_missing = runner.invoke(app, ["search", "nonexistentstuff"])
+    assert res_search_missing.exit_code == 0
+    assert "No results found." in res_search_missing.stdout
+
+
+def test_cli_search_disabled(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(settings.search, "enabled", False)
+
+    res_index = runner.invoke(app, ["index"])
+    assert res_index.exit_code == 0
+    assert "Search is disabled" in res_index.stdout
+
+    res_search = runner.invoke(app, ["search", "test"])
+    assert res_search.exit_code == 0
+    assert "Search is disabled" in res_search.stdout
