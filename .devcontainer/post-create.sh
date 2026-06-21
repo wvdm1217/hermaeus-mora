@@ -12,6 +12,15 @@ if ! command -v uv >/dev/null 2>&1; then
 	export PATH="$HOME/.local/bin:$PATH"
 fi
 
+# Install ollama if it is not already available.
+if ! command -v ollama >/dev/null 2>&1; then
+	# The installation requires zstd
+	if ! command -v zstd >/dev/null 2>&1; then
+		sudo apt-get update && sudo apt-get install -y zstd
+	fi
+	curl -fsSL https://ollama.com/install.sh | sh
+fi
+
 # Install project dependencies including the dev group.
 uv sync --dev
 
