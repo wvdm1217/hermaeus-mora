@@ -243,9 +243,6 @@ def index() -> None:
         return
 
     typer.secho("Building search index...", fg=typer.colors.CYAN)
-    if not settings.search.enabled:
-        typer.secho("Search is disabled in config.", fg=typer.colors.YELLOW)
-        return
 
     try:
         indexer = Indexer(settings.data_dir)
