@@ -3,7 +3,7 @@ title: "Journal Entry CLI (hm)"
 author: "Werner van der Merwe"
 date: "2026-06-19"
 version: "0.1.0"
-status: "Draft"
+status: "Implemented"
 ---
 
 # Journal Entry CLI (hm)
