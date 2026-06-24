@@ -1,8 +1,10 @@
 import abc
 import contextlib
+import hashlib
 import time
 from pathlib import Path
 
+from ollama._types import EmbeddingsResponse
 from sqlalchemy import text
 from sqlmodel import Field, Session, SQLModel, create_engine
 
@@ -17,6 +19,7 @@ class Memory(SQLModel, table=True):
     memory_id: str = Field(primary_key=True)
     file_path: str
     content: str
+    content_hash: str | None = Field(default=None)
 
 
 class BaseEmbedder(abc.ABC):
@@ -38,10 +41,12 @@ class OllamaEmbedder(BaseEmbedder):
                 "Please install it with `uv add ollama`"
             ) from None
 
-        embeddings = []
+        embeddings: list[list[float]] = []
         for content in texts:
-            resp = ollama.embeddings(model=self.model_name, prompt=content)
-            embeddings.append(resp["embedding"])
+            resp: EmbeddingsResponse = ollama.embeddings(
+                model=self.model_name, prompt=content
+            )
+            embeddings.append([float(x) for x in resp.embedding])
         return embeddings
 
 
@@ -68,6 +73,11 @@ class DuckDBStore:
 
             with contextlib.suppress(Exception):
                 session.exec(  # type: ignore
+                    text("ALTER TABLE memories ADD COLUMN content_hash VARCHAR;")
+                )
+
+            with contextlib.suppress(Exception):
+                session.exec(  # type: ignore
                     text(
                         "PRAGMA create_fts_index("
                         "'memories', 'memory_id', 'content', 'file_path'"
@@ -77,22 +87,33 @@ class DuckDBStore:
 
             session.commit()
 
+    def get_content_hash(self, memory_id: str) -> str | None:
+        with self._get_session() as session:
+            existing = session.get(Memory, memory_id)
+            return existing.content_hash if existing else None
+
     def upsert_memory(
         self,
         memory_id: str,
         file_path: str,
         content: str,
         embedding: list[float] | None = None,
+        content_hash: str | None = None,
     ) -> None:
         with self._get_session() as session:
             existing = session.get(Memory, memory_id)
             if existing:
                 existing.file_path = file_path
                 existing.content = content
+                if content_hash is not None:
+                    existing.content_hash = content_hash
                 session.add(existing)
             else:
                 new_mem = Memory(
-                    memory_id=memory_id, file_path=file_path, content=content
+                    memory_id=memory_id,
+                    file_path=file_path,
+                    content=content,
+                    content_hash=content_hash,
                 )
                 session.add(new_mem)
             session.commit()
@@ -231,27 +252,47 @@ class Indexer:
             return OllamaEmbedder(settings.search.embedding_model)
         raise ValueError(f"Unknown embedding provider: {settings.search.provider}")
 
-    def _upsert_single_entry(self, entry: Entry) -> None:
+    def _upsert_single_entry(self, entry: Entry) -> bool:
+        provider = settings.search.provider
+        model = settings.search.embedding_model
+
+        content_to_hash = f"{provider}:{model}:{entry.content}"
+        content_hash = hashlib.sha256(content_to_hash.encode("utf-8")).hexdigest()
+
+        existing_hash = self.store.get_content_hash(str(entry.metadata.id))
+        if existing_hash == content_hash:
+            return False
+
         embedding = None
         if self.embedder and entry.content.strip():
             try:
                 embedding = self.embedder.get_embeddings([entry.content])[0]
             except Exception as e:
                 print(f"Failed to embed entry {entry.metadata.id}: {e}")
+                # Do not set the content_hash if embedding fails so it retries next time
+                content_hash = None
 
         self.store.upsert_memory(
             memory_id=str(entry.metadata.id),
             file_path=str(storage.get_entry_path(entry).name),
             content=entry.content,
             embedding=embedding,
+            content_hash=content_hash,
         )
+        return True
 
-    def index_all(self) -> None:
+    def index_all(self) -> dict[str, int]:
+        updated_count = 0
+        skipped_count = 0
         entries = storage.get_all_entries()
         for entry in entries:
-            self._upsert_single_entry(entry)
+            if self._upsert_single_entry(entry):
+                updated_count += 1
+            else:
+                skipped_count += 1
 
         self.store.refresh_fts_index()
+        return {"updated": updated_count, "skipped": skipped_count}
 
     def search(self, query: str) -> list[dict]:
         query_embedding = None

@@ -243,7 +243,7 @@ def test_cli_search_and_index(monkeypatch, tmp_path):
 
     res_index = runner.invoke(app, ["index"])
     assert res_index.exit_code == 0
-    assert "Search index rebuilt successfully." in res_index.stdout
+    assert "Search index rebuilt successfully" in res_index.stdout
 
     editor_script_1 = (
         "import sys; p = sys.argv[-1]; "
