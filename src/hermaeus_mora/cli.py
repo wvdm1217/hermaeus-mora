@@ -235,8 +235,6 @@ def rm(entry_id: int = typer.Argument(..., help="ID of the entry to remove")) ->
 @app.command()
 def index() -> None:
     """Rebuild the search index for all entries."""
-    import time
-
     from hermaeus_mora.config import settings
     from hermaeus_mora.search import Indexer
 
@@ -247,12 +245,11 @@ def index() -> None:
     typer.secho("Building search index...", fg=typer.colors.CYAN)
 
     try:
-        start_time = time.perf_counter()
         indexer = Indexer(settings.data_dir)
         stats = indexer.index_all()
-        end_time = time.perf_counter()
+        elapsed = float(stats.get("elapsed_seconds", 0.0))
         typer.secho(
-            f"Search index rebuilt successfully in {end_time - start_time:.2f}s. "
+            f"Search index rebuilt successfully in {elapsed:.2f}s. "
             f"Updated: {stats['updated']}, Skipped: {stats['skipped']}.",
             fg=typer.colors.GREEN,
         )

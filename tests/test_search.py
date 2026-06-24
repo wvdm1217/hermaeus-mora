@@ -2,7 +2,36 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from hermaeus_mora.models import Entry, EntryMetadata
-from hermaeus_mora.search import DuckDBStore, Indexer
+from hermaeus_mora.search import DuckDBStore, Indexer, generate_content_hash
+
+
+def test_generate_content_hash_is_deterministic_and_context_sensitive():
+    content = "same content"
+    first = generate_content_hash("ollama", "embeddinggemma", content)
+    second = generate_content_hash("ollama", "embeddinggemma", content)
+    different_model = generate_content_hash("ollama", "other-model", content)
+    different_provider = generate_content_hash("other", "embeddinggemma", content)
+    different_content = generate_content_hash("ollama", "embeddinggemma", "changed")
+
+    assert first == second
+    assert first != different_model
+    assert first != different_provider
+    assert first != different_content
+
+
+def test_duckdb_get_content_hash_round_trip(tmp_path: Path):
+    store = DuckDBStore(tmp_path / "hash_test.duckdb")
+    expected_hash = generate_content_hash("ollama", "embeddinggemma", "content")
+
+    store.upsert_memory(
+        "1",
+        "file1.md",
+        "content",
+        content_hash=expected_hash,
+    )
+
+    assert store.get_content_hash("1") == expected_hash
+    assert store.get_content_hash("missing") is None
 
 
 def test_indexer_fts(tmp_path: Path):
@@ -54,6 +83,31 @@ def test_embedder_enabled(tmp_path: Path, monkeypatch):
     indexer.index_all()
     results = indexer.search("vector content")
     assert len(results) > 0
+
+
+def test_upsert_single_entry_skips_embedding_when_hash_matches(
+    tmp_path: Path, monkeypatch
+):
+    from hermaeus_mora.config import settings
+
+    monkeypatch.setattr(settings.search, "vector_enabled", True)
+
+    indexer = Indexer(tmp_path)
+    mock_embedder = MagicMock()
+    mock_embedder.get_embeddings.return_value = [[0.1, 0.2, 0.3]]
+    indexer.embedder = mock_embedder
+
+    entry = Entry(
+        metadata=EntryMetadata(id=123, title="skip test"),
+        content="unchanged content",
+    )
+
+    first_indexed = indexer._upsert_single_entry(entry)
+    second_indexed = indexer._upsert_single_entry(entry)
+
+    assert first_indexed is True
+    assert second_indexed is False
+    mock_embedder.get_embeddings.assert_called_once_with(["unchanged content"])
 
 
 def test_duckdb_delete(tmp_path: Path):

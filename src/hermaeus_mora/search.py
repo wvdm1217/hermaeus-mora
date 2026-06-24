@@ -13,6 +13,12 @@ from hermaeus_mora.config import settings
 from hermaeus_mora.models import Entry
 
 
+def generate_content_hash(provider: str, model: str, content: str) -> str:
+    """Create a deterministic hash for an entry under a provider/model context."""
+    content_to_hash = f"{provider}:{model}:{content}"
+    return hashlib.sha256(content_to_hash.encode("utf-8")).hexdigest()
+
+
 class Memory(SQLModel, table=True):
     __tablename__ = "memories"
 
@@ -182,7 +188,7 @@ class DuckDBStore:
                     SELECT memory_id,
                            fts_main_memories.match_bm25(memory_id, :query) AS bm25
                     FROM memories
-                    WHERE fts_main_memories.match_bm25(memory_id, :query) IS NOT NULL
+                    WHERE fts_main_memories.match_bm25(memory_id, :query) > 0
                 ),
                 vector_scores AS (
                     SELECT memory_id,
@@ -226,7 +232,7 @@ class DuckDBStore:
                 SELECT memory_id, file_path,
                        fts_main_memories.match_bm25(memory_id, :query) AS score
                 FROM memories
-                WHERE fts_main_memories.match_bm25(memory_id, :query) IS NOT NULL
+                  WHERE fts_main_memories.match_bm25(memory_id, :query) > 0
                 ORDER BY score DESC
                 LIMIT :limit
                 """
@@ -256,8 +262,7 @@ class Indexer:
         provider = settings.search.provider
         model = settings.search.embedding_model
 
-        content_to_hash = f"{provider}:{model}:{entry.content}"
-        content_hash = hashlib.sha256(content_to_hash.encode("utf-8")).hexdigest()
+        content_hash = generate_content_hash(provider, model, entry.content)
 
         existing_hash = self.store.get_content_hash(str(entry.metadata.id))
         if existing_hash == content_hash:
@@ -281,7 +286,8 @@ class Indexer:
         )
         return True
 
-    def index_all(self) -> dict[str, int]:
+    def index_all(self) -> dict[str, int | float]:
+        start_time = time.perf_counter()
         updated_count = 0
         skipped_count = 0
         entries = storage.get_all_entries()
@@ -292,7 +298,12 @@ class Indexer:
                 skipped_count += 1
 
         self.store.refresh_fts_index()
-        return {"updated": updated_count, "skipped": skipped_count}
+        elapsed_seconds = time.perf_counter() - start_time
+        return {
+            "updated": updated_count,
+            "skipped": skipped_count,
+            "elapsed_seconds": elapsed_seconds,
+        }
 
     def search(self, query: str) -> list[dict]:
         query_embedding = None

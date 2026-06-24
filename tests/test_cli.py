@@ -240,6 +240,7 @@ def test_cli_list_slug_truncation(monkeypatch, tmp_path):
 def test_cli_search_and_index(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     monkeypatch.setattr(settings.search, "enabled", True)
+    monkeypatch.setattr(settings.search, "vector_enabled", False)
 
     res_index = runner.invoke(app, ["index"])
     assert res_index.exit_code == 0
