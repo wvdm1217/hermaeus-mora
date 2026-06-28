@@ -13,7 +13,7 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
     "pyyaml>=6.0.3",
-    "sqlmodel>=0.0.38",
+    "sqlmodel>=0.0.39",
     "typer>=0.26.7",
 ]
 
